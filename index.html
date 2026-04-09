@@ -423,6 +423,79 @@
             justify-content: flex-end;
         }
 
+        /* Lock screen */
+        .lock-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .lock-screen.hidden {
+            display: none;
+        }
+
+        .lock-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            padding: 40px 36px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .lock-card .lock-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .lock-card h2 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .lock-card p {
+            font-size: 14px;
+            color: var(--text-light);
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .lock-card input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+            background: #fafaf7;
+        }
+
+        .lock-card input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .lock-card .btn {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            justify-content: center;
+        }
+
+        .lock-error {
+            color: var(--danger);
+            font-size: 13px;
+            margin-bottom: 12px;
+            min-height: 20px;
+        }
+
         /* Responsive */
         @media (max-width: 600px) {
             .header {
@@ -453,6 +526,18 @@
     </style>
 </head>
 <body>
+    <!-- Lock Screen -->
+    <div class="lock-screen" id="lock-screen">
+        <div class="lock-card">
+            <div class="lock-icon">&#128274;</div>
+            <h2>Notebook Locked</h2>
+            <p id="lock-desc">Enter your password to unlock</p>
+            <input type="password" id="lock-password" placeholder="Password" onkeydown="if(event.key==='Enter')unlockApp()">
+            <div class="lock-error" id="lock-error"></div>
+            <button class="btn btn-primary" onclick="unlockApp()">Unlock</button>
+        </div>
+    </div>
+
     <!-- Header -->
     <div class="header">
         <h1>My Notebook</h1>
@@ -522,6 +607,11 @@
                     <label>Branch</label>
                     <input type="text" id="cfg-branch" placeholder="main" value="main">
                 </div>
+                <div class="form-group">
+                    <label>Encryption Password</label>
+                    <input type="password" id="cfg-password" placeholder="Enter encryption password">
+                    <div class="hint" style="color: var(--danger);">Warning: If you forget this password, your diary data CANNOT be recovered!</div>
+                </div>
                 <div class="settings-actions">
                     <button class="btn btn-primary" onclick="saveSettings()">Save</button>
                     <button class="btn btn-outline" onclick="testConnection()">Test Connection</button>
@@ -546,6 +636,123 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        // ==================== Encryption ====================
+        let sessionPassword = null;
+
+        async function deriveKey(password, salt) {
+            const enc = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey(
+                'raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']
+            );
+            return crypto.subtle.deriveKey(
+                { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+                keyMaterial,
+                { name: 'AES-GCM', length: 256 },
+                false,
+                ['encrypt', 'decrypt']
+            );
+        }
+
+        async function encryptText(plaintext, password) {
+            const enc = new TextEncoder();
+            const salt = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const key = await deriveKey(password, salt);
+            const ciphertext = await crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv },
+                key,
+                enc.encode(plaintext)
+            );
+            // Combine: salt(16) + iv(12) + ciphertext
+            const combined = new Uint8Array(salt.length + iv.length + ciphertext.byteLength);
+            combined.set(salt, 0);
+            combined.set(iv, salt.length);
+            combined.set(new Uint8Array(ciphertext), salt.length + iv.length);
+            return 'ENC:' + btoa(String.fromCharCode(...combined));
+        }
+
+        async function decryptText(encString, password) {
+            const data = Uint8Array.from(atob(encString.slice(4)), c => c.charCodeAt(0));
+            const salt = data.slice(0, 16);
+            const iv = data.slice(16, 28);
+            const ciphertext = data.slice(28);
+            const key = await deriveKey(password, salt);
+            const dec = new TextDecoder();
+            const plaintext = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv },
+                key,
+                ciphertext
+            );
+            return dec.decode(plaintext);
+        }
+
+        function isEncrypted(text) {
+            return text.startsWith('ENC:');
+        }
+
+        // Store a verification token so we can check password correctness on unlock
+        async function savePasswordVerifier(password) {
+            const token = await encryptText('__notebook_verify__', password);
+            localStorage.setItem('nb_verify', token);
+        }
+
+        async function verifyPassword(password) {
+            const token = localStorage.getItem('nb_verify');
+            if (!token) return true; // No verifier yet = first time setup
+            try {
+                const result = await decryptText(token, password);
+                return result === '__notebook_verify__';
+            } catch {
+                return false;
+            }
+        }
+
+        // ==================== Lock Screen ====================
+        function hasPassword() {
+            return !!localStorage.getItem('nb_verify');
+        }
+
+        async function unlockApp() {
+            const input = document.getElementById('lock-password');
+            const errorEl = document.getElementById('lock-error');
+            const password = input.value;
+
+            if (!password) {
+                errorEl.textContent = 'Please enter a password';
+                return;
+            }
+
+            if (!hasPassword()) {
+                // First time: set password
+                sessionPassword = password;
+                await savePasswordVerifier(password);
+                document.getElementById('lock-screen').classList.add('hidden');
+                showToast('Encryption password set!');
+                return;
+            }
+
+            const ok = await verifyPassword(password);
+            if (ok) {
+                sessionPassword = password;
+                errorEl.textContent = '';
+                document.getElementById('lock-screen').classList.add('hidden');
+            } else {
+                errorEl.textContent = 'Wrong password';
+                input.value = '';
+                input.focus();
+            }
+        }
+
+        function initLockScreen() {
+            const lockScreen = document.getElementById('lock-screen');
+            if (!hasPassword()) {
+                document.getElementById('lock-desc').textContent =
+                    'Set a password to encrypt your diary. Remember it — data cannot be recovered without it!';
+            }
+            lockScreen.classList.remove('hidden');
+            document.getElementById('lock-password').focus();
+        }
+
         // ==================== Config ====================
         function getConfig() {
             return {
@@ -566,7 +773,15 @@
             localStorage.setItem('nb_repo', document.getElementById('cfg-repo').value.trim());
             localStorage.setItem('nb_token', document.getElementById('cfg-token').value.trim());
             localStorage.setItem('nb_branch', document.getElementById('cfg-branch').value.trim() || 'main');
-            showToast('Settings saved!');
+            // Update encryption password if changed
+            const newPwd = document.getElementById('cfg-password').value;
+            if (newPwd && newPwd !== sessionPassword) {
+                sessionPassword = newPwd;
+                savePasswordVerifier(newPwd);
+                showToast('Settings & encryption password saved!');
+            } else {
+                showToast('Settings saved!');
+            }
         }
 
         function loadSettings() {
@@ -575,6 +790,9 @@
             document.getElementById('cfg-repo').value = c.repo;
             document.getElementById('cfg-token').value = c.token;
             document.getElementById('cfg-branch').value = c.branch;
+            if (sessionPassword) {
+                document.getElementById('cfg-password').value = sessionPassword;
+            }
         }
 
         // ==================== GitHub API ====================
@@ -733,7 +951,18 @@
             try {
                 const file = await getFile(`diaries/${date}.md`);
                 if (file) {
-                    const content = decodeURIComponent(escape(atob(file.content)));
+                    let content = decodeURIComponent(escape(atob(file.content)));
+                    // Decrypt if encrypted
+                    if (isEncrypted(content) && sessionPassword) {
+                        try {
+                            content = await decryptText(content, sessionPassword);
+                        } catch {
+                            statusEl.textContent = 'Decryption failed';
+                            statusEl.className = 'save-status error';
+                            showToast('Failed to decrypt — wrong password?');
+                            return;
+                        }
+                    }
                     document.getElementById('diary-content').value = content;
                     document.getElementById('char-count').textContent = `${content.length} chars`;
                     currentFileSha = file.sha;
@@ -789,7 +1018,12 @@
                     ? `Update diary: ${date}`
                     : `Add diary: ${date}`;
 
-                const result = await putFile(`diaries/${date}.md`, content, message, currentFileSha);
+                // Encrypt content before saving
+                const saveContent = sessionPassword
+                    ? await encryptText(content, sessionPassword)
+                    : content;
+
+                const result = await putFile(`diaries/${date}.md`, saveContent, message, currentFileSha);
                 currentFileSha = result.content.sha;
 
                 statusEl.textContent = 'Saved!';
@@ -925,6 +1159,7 @@
         // ==================== Init ====================
         window.addEventListener('DOMContentLoaded', () => {
             initEditor();
+            initLockScreen();
 
             if (!isConfigured()) {
                 showView('settings');
