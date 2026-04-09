@@ -608,13 +608,16 @@
                     <input type="text" id="cfg-branch" placeholder="main" value="main">
                 </div>
                 <div class="form-group">
-                    <label>Encryption Password</label>
-                    <input type="password" id="cfg-password" placeholder="Enter encryption password">
-                    <div class="hint" style="color: var(--danger);">Warning: If you forget this password, your diary data CANNOT be recovered!</div>
+                    <label>Change Encryption Password</label>
+                    <input type="password" id="cfg-old-password" placeholder="Current password" style="margin-bottom:8px;">
+                    <input type="password" id="cfg-new-password" placeholder="New password" style="margin-bottom:8px;">
+                    <input type="password" id="cfg-new-password2" placeholder="Confirm new password">
+                    <div class="hint" style="color: var(--danger);">All existing diary entries will be re-encrypted with the new password</div>
                 </div>
                 <div class="settings-actions">
-                    <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+                    <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
                     <button class="btn btn-outline" onclick="testConnection()">Test Connection</button>
+                    <button class="btn btn-danger" onclick="changePassword()" id="btn-change-pwd">Change Password</button>
                 </div>
             </div>
         </div>
@@ -773,14 +776,66 @@
             localStorage.setItem('nb_repo', document.getElementById('cfg-repo').value.trim());
             localStorage.setItem('nb_token', document.getElementById('cfg-token').value.trim());
             localStorage.setItem('nb_branch', document.getElementById('cfg-branch').value.trim() || 'main');
-            // Update encryption password if changed
-            const newPwd = document.getElementById('cfg-password').value;
-            if (newPwd && newPwd !== sessionPassword) {
+            showToast('Settings saved!');
+        }
+
+        async function changePassword() {
+            const oldPwd = document.getElementById('cfg-old-password').value;
+            const newPwd = document.getElementById('cfg-new-password').value;
+            const newPwd2 = document.getElementById('cfg-new-password2').value;
+
+            if (!oldPwd || !newPwd || !newPwd2) {
+                showToast('Please fill in all password fields');
+                return;
+            }
+            if (newPwd !== newPwd2) {
+                showToast('New passwords do not match');
+                return;
+            }
+            const ok = await verifyPassword(oldPwd);
+            if (!ok) {
+                showToast('Current password is incorrect');
+                return;
+            }
+            if (!isConfigured()) {
+                showToast('Please configure GitHub settings first');
+                return;
+            }
+
+            const btn = document.getElementById('btn-change-pwd');
+            btn.disabled = true;
+            btn.textContent = 'Re-encrypting...';
+
+            try {
+                // List all diary files
+                const files = await listDiaries();
+                for (const f of files) {
+                    // Load file content
+                    const file = await getFile(`diaries/${f.name}`);
+                    if (!file) continue;
+                    let content = decodeURIComponent(escape(atob(file.content)));
+                    // Decrypt with old password
+                    if (isEncrypted(content)) {
+                        content = await decryptText(content, oldPwd);
+                    }
+                    // Re-encrypt with new password
+                    const encrypted = await encryptText(content, newPwd);
+                    // Save back
+                    await putFile(`diaries/${f.name}`, encrypted, `Re-encrypt: ${f.name}`, file.sha);
+                }
+                // Update verifier and session
                 sessionPassword = newPwd;
-                savePasswordVerifier(newPwd);
-                showToast('Settings & encryption password saved!');
-            } else {
-                showToast('Settings saved!');
+                await savePasswordVerifier(newPwd);
+                // Clear input fields
+                document.getElementById('cfg-old-password').value = '';
+                document.getElementById('cfg-new-password').value = '';
+                document.getElementById('cfg-new-password2').value = '';
+                showToast(`Password changed! ${files.length} entries re-encrypted.`);
+            } catch (e) {
+                showToast(`Password change failed: ${e.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Change Password';
             }
         }
 
@@ -790,9 +845,6 @@
             document.getElementById('cfg-repo').value = c.repo;
             document.getElementById('cfg-token').value = c.token;
             document.getElementById('cfg-branch').value = c.branch;
-            if (sessionPassword) {
-                document.getElementById('cfg-password').value = sessionPassword;
-            }
         }
 
         // ==================== GitHub API ====================
