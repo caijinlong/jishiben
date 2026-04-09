@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Notebook</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4a90d9;
+            --primary-dark: #357abd;
+            --bg: #f5f1eb;
+            --card-bg: #fffef9;
+            --text: #2c2c2c;
+            --text-light: #666;
+            --border: #e0dcd5;
+            --shadow: 0 2px 12px rgba(0,0,0,0.08);
+            --danger: #e74c3c;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--text);
+            letter-spacing: 1px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-outline:hover {
+            background: #f0ece6;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Main layout */
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 24px 16px;
+        }
+
+        /* Views */
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* Editor view */
+        .editor-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .editor-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .date-input {
+            font-size: 18px;
+            font-weight: 600;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        .date-input:focus {
+            outline: 2px solid var(--primary);
+            border-radius: 4px;
+        }
+
+        .editor-body {
+            padding: 0;
+        }
+
+        .editor-body textarea {
+            width: 100%;
+            min-height: 50vh;
+            padding: 24px;
+            border: none;
+            resize: vertical;
+            font-size: 16px;
+            line-height: 1.8;
+            color: var(--text);
+            background: var(--card-bg);
+            font-family: inherit;
+        }
+
+        .editor-body textarea:focus {
+            outline: none;
+        }
+
+        .editor-body textarea::placeholder {
+            color: #bbb;
+        }
+
+        .editor-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .char-count {
+            color: var(--text-light);
+            font-size: 13px;
+        }
+
+        .save-status {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        .save-status.saving {
+            color: var(--primary);
+        }
+
+        .save-status.saved {
+            color: #27ae60;
+        }
+
+        .save-status.error {
+            color: var(--danger);
+        }
+
+        /* Diary list view */
+        .list-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .list-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .diary-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .diary-item {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 18px 22px;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .diary-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        .diary-item-left h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .diary-item-left p {
+            font-size: 14px;
+            color: var(--text-light);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 500px;
+        }
+
+        .diary-item-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .diary-item-arrow {
+            color: #ccc;
+            font-size: 20px;
+        }
+
+        .btn-delete-small {
+            background: none;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-delete-small:hover {
+            color: var(--danger);
+            background: #ffeaea;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state p {
+            font-size: 16px;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-light);
+        }
+
+        /* Settings view */
+        .settings-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 32px;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        .settings-card h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text);
+        }
+
+        .form-group .hint {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 15px;
+            color: var(--text);
+            background: #fafaf7;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .settings-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 28px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 14px;
+            z-index: 999;
+            transition: transform 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--card-bg);
+            border-radius: 14px;
+            padding: 28px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+        }
+
+        .modal h3 {
+            font-size: 18px;
+            margin-bottom: 12px;
+        }
+
+        .modal p {
+            font-size: 14px;
+            color: var(--text-light);
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .header {
+                padding: 12px 16px;
+            }
+
+            .header h1 {
+                font-size: 18px;
+            }
+
+            .container {
+                padding: 16px 12px;
+            }
+
+            .editor-header {
+                padding: 16px;
+            }
+
+            .editor-body textarea {
+                padding: 16px;
+                min-height: 40vh;
+            }
+
+            .diary-item-left p {
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>My Notebook</h1>
+        <div class="header-actions">
+            <button class="btn btn-outline" onclick="showView('list')" id="btn-list">History</button>
+            <button class="btn btn-primary" onclick="showView('editor')" id="btn-new">+ New</button>
+            <button class="btn btn-outline" onclick="showView('settings')" id="btn-settings">Settings</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Editor View -->
+        <div class="view active" id="view-editor">
+            <div class="editor-card">
+                <div class="editor-header">
+                    <input type="date" class="date-input" id="diary-date">
+                    <span class="save-status" id="save-status"></span>
+                </div>
+                <div class="editor-body">
+                    <textarea id="diary-content" placeholder="Write down what's on your mind..."></textarea>
+                </div>
+                <div class="editor-footer">
+                    <span class="char-count" id="char-count">0 chars</span>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-outline" onclick="loadDiaryForDate()">Load</button>
+                        <button class="btn btn-primary" onclick="saveDiary()" id="btn-save">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- List View -->
+        <div class="view" id="view-list">
+            <div class="list-header">
+                <h2>Diary</h2>
+                <button class="btn btn-primary" onclick="showView('editor')">+ New</button>
+            </div>
+            <div id="diary-list-container">
+                <div class="loading-state">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Settings View -->
+        <div class="view" id="view-settings">
+            <div class="settings-card">
+                <h2>GitHub Settings</h2>
+                <p style="color: var(--text-light); font-size: 14px; margin-bottom: 24px; line-height: 1.6;">
+                    Your diary will be saved as files in a GitHub repository. You'll need to create a
+                    <a href="https://github.com/settings/tokens/new" target="_blank">Personal Access Token</a>
+                    (with <code>repo</code> scope) to enable saving.
+                </p>
+                <div class="form-group">
+                    <label>GitHub Username</label>
+                    <input type="text" id="cfg-owner" placeholder="e.g. caijinlong">
+                </div>
+                <div class="form-group">
+                    <label>Repository Name</label>
+                    <input type="text" id="cfg-repo" placeholder="e.g. jishiben">
+                    <div class="hint">Make sure the repo exists on GitHub</div>
+                </div>
+                <div class="form-group">
+                    <label>Personal Access Token</label>
+                    <input type="password" id="cfg-token" placeholder="ghp_xxxxxxxxxxxx">
+                    <div class="hint">Only stored in your browser's localStorage, never uploaded</div>
+                </div>
+                <div class="form-group">
+                    <label>Branch</label>
+                    <input type="text" id="cfg-branch" placeholder="main" value="main">
+                </div>
+                <div class="settings-actions">
+                    <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+                    <button class="btn btn-outline" onclick="testConnection()">Test Connection</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="delete-modal">
+        <div class="modal">
+            <h3>Delete Diary?</h3>
+            <p id="delete-modal-msg">This diary entry will be permanently deleted from the repository.</p>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="confirmDelete()" id="btn-confirm-delete">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ==================== Config ====================
+        function getConfig() {
+            return {
+                owner: localStorage.getItem('nb_owner') || '',
+                repo: localStorage.getItem('nb_repo') || '',
+                token: localStorage.getItem('nb_token') || '',
+                branch: localStorage.getItem('nb_branch') || 'main'
+            };
+        }
+
+        function isConfigured() {
+            const c = getConfig();
+            return c.owner && c.repo && c.token;
+        }
+
+        function saveSettings() {
+            localStorage.setItem('nb_owner', document.getElementById('cfg-owner').value.trim());
+            localStorage.setItem('nb_repo', document.getElementById('cfg-repo').value.trim());
+            localStorage.setItem('nb_token', document.getElementById('cfg-token').value.trim());
+            localStorage.setItem('nb_branch', document.getElementById('cfg-branch').value.trim() || 'main');
+            showToast('Settings saved!');
+        }
+
+        function loadSettings() {
+            const c = getConfig();
+            document.getElementById('cfg-owner').value = c.owner;
+            document.getElementById('cfg-repo').value = c.repo;
+            document.getElementById('cfg-token').value = c.token;
+            document.getElementById('cfg-branch').value = c.branch;
+        }
+
+        // ==================== GitHub API ====================
+        function apiHeaders() {
+            const c = getConfig();
+            return {
+                'Authorization': `Bearer ${c.token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            };
+        }
+
+        function apiBase() {
+            const c = getConfig();
+            return `https://api.github.com/repos/${c.owner}/${c.repo}`;
+        }
+
+        async function testConnection() {
+            if (!isConfigured()) {
+                showToast('Please fill in all settings first');
+                return;
+            }
+            try {
+                const resp = await fetch(apiBase(), { headers: apiHeaders() });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    showToast(`Connected! Repo: ${data.full_name}`);
+                } else if (resp.status === 401) {
+                    showToast('Token is invalid or expired');
+                } else if (resp.status === 404) {
+                    showToast('Repository not found, check owner/repo name');
+                } else {
+                    showToast(`Error: ${resp.status}`);
+                }
+            } catch (e) {
+                showToast('Network error, please check your connection');
+            }
+        }
+
+        // Get file content from GitHub
+        async function getFile(path) {
+            const resp = await fetch(`${apiBase()}/contents/${path}?ref=${getConfig().branch}`, {
+                headers: apiHeaders()
+            });
+            if (resp.status === 404) return null;
+            if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+            return await resp.json();
+        }
+
+        // Create or update file on GitHub
+        async function putFile(path, content, message, sha) {
+            const body = {
+                message,
+                content: btoa(unescape(encodeURIComponent(content))),
+                branch: getConfig().branch
+            };
+            if (sha) body.sha = sha;
+
+            const resp = await fetch(`${apiBase()}/contents/${path}`, {
+                method: 'PUT',
+                headers: apiHeaders(),
+                body: JSON.stringify(body)
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.message || `API error: ${resp.status}`);
+            }
+            return await resp.json();
+        }
+
+        // Delete file on GitHub
+        async function deleteFile(path, sha, message) {
+            const resp = await fetch(`${apiBase()}/contents/${path}`, {
+                method: 'DELETE',
+                headers: apiHeaders(),
+                body: JSON.stringify({
+                    message,
+                    sha,
+                    branch: getConfig().branch
+                })
+            });
+            if (!resp.ok) throw new Error(`Delete failed: ${resp.status}`);
+        }
+
+        // List diary files
+        async function listDiaries() {
+            const resp = await fetch(`${apiBase()}/contents/diaries?ref=${getConfig().branch}`, {
+                headers: apiHeaders()
+            });
+            if (resp.status === 404) return [];
+            if (!resp.ok) throw new Error(`API error: ${resp.status}`);
+            const files = await resp.json();
+            return files
+                .filter(f => f.name.endsWith('.md'))
+                .sort((a, b) => b.name.localeCompare(a.name));
+        }
+
+        // ==================== Views ====================
+        function showView(name) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(`view-${name}`).classList.add('active');
+
+            // Update active button style
+            document.querySelectorAll('.header-actions .btn').forEach(b => {
+                b.style.fontWeight = 'normal';
+            });
+
+            if (name === 'editor') {
+                // new note: reset
+            } else if (name === 'list') {
+                loadDiaryList();
+            } else if (name === 'settings') {
+                loadSettings();
+            }
+        }
+
+        // ==================== Editor ====================
+        let currentFileSha = null;
+
+        function initEditor() {
+            const dateInput = document.getElementById('diary-date');
+            const today = new Date().toISOString().slice(0, 10);
+            dateInput.value = today;
+
+            const textarea = document.getElementById('diary-content');
+            textarea.addEventListener('input', () => {
+                document.getElementById('char-count').textContent = `${textarea.value.length} chars`;
+            });
+        }
+
+        function newDiary() {
+            const dateInput = document.getElementById('diary-date');
+            const today = new Date().toISOString().slice(0, 10);
+            dateInput.value = today;
+            document.getElementById('diary-content').value = '';
+            document.getElementById('char-count').textContent = '0 chars';
+            document.getElementById('save-status').textContent = '';
+            currentFileSha = null;
+            showView('editor');
+        }
+
+        async function loadDiaryForDate() {
+            if (!isConfigured()) {
+                showToast('Please configure GitHub settings first');
+                showView('settings');
+                return;
+            }
+
+            const date = document.getElementById('diary-date').value;
+            if (!date) return;
+
+            const statusEl = document.getElementById('save-status');
+            statusEl.textContent = 'Loading...';
+            statusEl.className = 'save-status saving';
+
+            try {
+                const file = await getFile(`diaries/${date}.md`);
+                if (file) {
+                    const content = decodeURIComponent(escape(atob(file.content)));
+                    document.getElementById('diary-content').value = content;
+                    document.getElementById('char-count').textContent = `${content.length} chars`;
+                    currentFileSha = file.sha;
+                    statusEl.textContent = 'Loaded';
+                    statusEl.className = 'save-status saved';
+                } else {
+                    document.getElementById('diary-content').value = '';
+                    document.getElementById('char-count').textContent = '0 chars';
+                    currentFileSha = null;
+                    statusEl.textContent = 'No entry for this date';
+                    statusEl.className = 'save-status';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Load failed';
+                statusEl.className = 'save-status error';
+                showToast(e.message);
+            }
+        }
+
+        async function saveDiary() {
+            if (!isConfigured()) {
+                showToast('Please configure GitHub settings first');
+                showView('settings');
+                return;
+            }
+
+            const date = document.getElementById('diary-date').value;
+            const content = document.getElementById('diary-content').value;
+
+            if (!date) {
+                showToast('Please select a date');
+                return;
+            }
+            if (!content.trim()) {
+                showToast('Content is empty');
+                return;
+            }
+
+            const statusEl = document.getElementById('save-status');
+            const saveBtn = document.getElementById('btn-save');
+            statusEl.textContent = 'Saving...';
+            statusEl.className = 'save-status saving';
+            saveBtn.disabled = true;
+
+            try {
+                // Check if file already exists (to get sha for update)
+                if (!currentFileSha) {
+                    const existing = await getFile(`diaries/${date}.md`);
+                    if (existing) currentFileSha = existing.sha;
+                }
+
+                const message = currentFileSha
+                    ? `Update diary: ${date}`
+                    : `Add diary: ${date}`;
+
+                const result = await putFile(`diaries/${date}.md`, content, message, currentFileSha);
+                currentFileSha = result.content.sha;
+
+                statusEl.textContent = 'Saved!';
+                statusEl.className = 'save-status saved';
+                showToast('Diary saved to GitHub!');
+            } catch (e) {
+                statusEl.textContent = 'Save failed';
+                statusEl.className = 'save-status error';
+                showToast(`Save failed: ${e.message}`);
+            } finally {
+                saveBtn.disabled = false;
+            }
+        }
+
+        // ==================== Diary List ====================
+        async function loadDiaryList() {
+            const container = document.getElementById('diary-list-container');
+
+            if (!isConfigured()) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">&#9881;</div>
+                        <p>Please configure GitHub settings first</p>
+                        <button class="btn btn-primary" style="margin-top:16px" onclick="showView('settings')">Go to Settings</button>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = '<div class="loading-state">Loading diary list...</div>';
+
+            try {
+                const files = await listDiaries();
+
+                if (files.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">&#128214;</div>
+                            <p>No diary entries yet. Start writing!</p>
+                            <button class="btn btn-primary" style="margin-top:16px" onclick="newDiary()">Write First Entry</button>
+                        </div>`;
+                    return;
+                }
+
+                const html = files.map(f => {
+                    const date = f.name.replace('.md', '');
+                    const displayDate = formatDate(date);
+                    return `
+                        <div class="diary-item" onclick="openDiary('${date}')">
+                            <div class="diary-item-left">
+                                <h3>${displayDate}</h3>
+                                <p>${date}</p>
+                            </div>
+                            <div class="diary-item-right">
+                                <button class="btn-delete-small" onclick="event.stopPropagation(); showDeleteModal('${date}', '${f.sha}')" title="Delete">&#10005;</button>
+                                <span class="diary-item-arrow">&#8250;</span>
+                            </div>
+                        </div>`;
+                }).join('');
+
+                container.innerHTML = `<div class="diary-list">${html}</div>`;
+            } catch (e) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">&#9888;</div>
+                        <p>Failed to load: ${e.message}</p>
+                    </div>`;
+            }
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr + 'T00:00:00');
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} (${days[d.getDay()]})`;
+        }
+
+        async function openDiary(date) {
+            document.getElementById('diary-date').value = date;
+            document.getElementById('diary-content').value = '';
+            currentFileSha = null;
+            showView('editor');
+            await loadDiaryForDate();
+        }
+
+        // ==================== Delete ====================
+        let pendingDelete = { date: '', sha: '' };
+
+        function showDeleteModal(date, sha) {
+            pendingDelete = { date, sha };
+            document.getElementById('delete-modal-msg').textContent =
+                `Are you sure you want to delete the diary entry for ${date}?`;
+            document.getElementById('delete-modal').classList.add('show');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal').classList.remove('show');
+            pendingDelete = { date: '', sha: '' };
+        }
+
+        async function confirmDelete() {
+            const btn = document.getElementById('btn-confirm-delete');
+            btn.disabled = true;
+            btn.textContent = 'Deleting...';
+
+            try {
+                await deleteFile(
+                    `diaries/${pendingDelete.date}.md`,
+                    pendingDelete.sha,
+                    `Delete diary: ${pendingDelete.date}`
+                );
+                showToast('Diary deleted');
+                closeDeleteModal();
+                loadDiaryList();
+            } catch (e) {
+                showToast(`Delete failed: ${e.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Delete';
+            }
+        }
+
+        // ==================== Toast ====================
+        let toastTimer;
+        function showToast(msg) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+        }
+
+        // ==================== Init ====================
+        window.addEventListener('DOMContentLoaded', () => {
+            initEditor();
+
+            if (!isConfigured()) {
+                showView('settings');
+            }
+        });
+    </script>
+</body>
+</html>
